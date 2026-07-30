@@ -1,0 +1,27 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Next.js
+.next/
+backend/.next/
+
+# Expo
+.expo/
+mobile/.expo/
+mobile/expo-env.d.ts
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Secrets (never commit)
+backend/prisma/db-password-apis
+**/db-password-apis
+*.secret
+
+# Prisma
+backend/prisma/*.db

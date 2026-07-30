@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "ANVESA",
+    "slug": "anvesa",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "anvesa",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#FBFAFF",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anvesa.app"
+    },
+    "android": {
+      "package": "com.anvesa.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FBFAFF"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ANVESA uses the camera to scan product barcodes and food labels."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

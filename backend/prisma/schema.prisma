@@ -1,0 +1,653 @@
+// ANVESA — normalized production schema.
+// Grading integrity note (Requirement 12): commercial signals (paid listing,
+// payments) live in tables the grading module never imports. The ProductGrade
+// row is written ONLY by GradingService; no mutation accepts a grade value.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- Enums ----------
+enum Role {
+  CUSTOMER
+  ADMIN
+  VENDOR
+}
+
+enum Grade {
+  A
+  B
+  C
+  D
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PACKED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+}
+
+enum CouponType {
+  PERCENT
+  FLAT
+}
+
+enum WalletTxnType {
+  CREDIT
+  DEBIT
+}
+
+enum SubStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_SAY
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum Diet {
+  VEG
+  NON_VEG
+  VEGAN
+  EGGETARIAN
+}
+
+// ---------- Identity & profile ----------
+model User {
+  id             String          @id @default(uuid())
+  phone          String?         @unique
+  email          String?         @unique
+  appleSub       String?         @unique
+  googleSub      String?         @unique
+  isGuest        Boolean         @default(false)
+  role           Role            @default(CUSTOMER)
+  lastActiveAt   DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  profile        Profile?
+  addresses      Address[]
+  orders         Order[]
+  wallet         Wallet?
+  xp             Xp?
+  streaks        Streak?
+  refreshTokens  RefreshToken[]
+  savedProducts  SavedProduct[]
+  recentlyViewed RecentlyViewed[]
+  reviews        Review[]
+  pincodes       Pincode[]
+  deviceTokens   DeviceToken[]
+  notifications  Notification[]
+  scanHistory    ScanHistory[]
+  scanRewards    ScanReward[]
+  badges         Badge[]
+  subscriptions  Subscription[]
+  feedback       Feedback[]
+  savedArticles  SavedArticle[]
+  readingProgress ReadingProgress[]
+  admin          Admin?
+
+  @@index([phone])
+  @@index([email])
+}
+
+model Profile {
+  id            String        @id @default(uuid())
+  userId        String        @unique
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age           Int
+  gender        Gender
+  heightCm      Int
+  weightKg      Int
+  conditions    String[]
+  goals         String[]
+  activityLevel ActivityLevel
+  diet          Diet
+  updatedAt     DateTime      @updatedAt
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  line1     String
+  line2     String?
+  city      String
+  pincode   String
+  lat       Float
+  lng       Float
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------- Catalog ----------
+model Category {
+  id       String    @id @default(uuid())
+  key      String    @unique
+  name     String
+  products Product[]
+}
+
+model Brand {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Vendor {
+  id        String    @id @default(uuid())
+  name      String
+  isActive  Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id          String           @id @default(uuid())
+  name        String
+  barcode     String?          @unique
+  categoryId  String
+  brandId     String
+  vendorId    String?
+  isListed    Boolean          @default(true) // paid listing visibility; NOT a grading input
+  category    Category         @relation(fields: [categoryId], references: [id])
+  brand       Brand            @relation(fields: [brandId], references: [id])
+  vendor      Vendor?          @relation(fields: [vendorId], references: [id])
+  images      ProductImage[]
+  variants    ProductVariant[]
+  nutrition   Nutrition?
+  ingredients Ingredient[]
+  grade       ProductGrade?
+  flags       ProductFlag[]
+  affiliate   AffiliateLink[]
+  reviews     Review[]
+  createdAt   DateTime         @default(now())
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([vendorId])
+  @@index([name])
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  position  Int     @default(0)
+
+  @@index([productId])
+}
+
+model ProductVariant {
+  id            String      @id @default(uuid())
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label         String
+  priceCents    Int
+  discountCents Int         @default(0)
+  stock         Int         @default(0)
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  subItems      SubscriptionItem[]
+
+  @@index([productId])
+}
+
+model Nutrition {
+  id         String  @id @default(uuid())
+  productId  String  @unique
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  energyKcal Float
+  sugarG     Float
+  sodiumMg   Float
+  proteinG   Float
+  fatG       Float
+  satFatG    Float   @default(0)
+  fibreG     Float
+}
+
+model Ingredient {
+  id         String  @id @default(uuid())
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name       String
+  isAdditive Boolean @default(false)
+  isAllergen Boolean @default(false)
+
+  @@index([productId])
+}
+
+// Grade written ONLY by GradingService. No mutation accepts a grade value. (R12)
+model ProductGrade {
+  id         String           @id @default(uuid())
+  productId  String           @unique
+  grade      Grade
+  computedAt DateTime         @default(now())
+  inputHash  String
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reasoning  GradeReasoning[]
+
+  @@index([grade])
+}
+
+model GradeReasoning {
+  id      String       @id @default(uuid())
+  gradeId String
+  grade   ProductGrade @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  factor  String
+  weight  Float
+  detail  String
+
+  @@index([gradeId])
+}
+
+model ProductFlag {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      String
+  severity  String
+  note      String
+
+  @@index([productId])
+}
+
+model AffiliateLink {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  provider  String
+  url       String
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  productId String
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  text      String
+  createdAt DateTime @default(now())
+
+  @@unique([productId, userId])
+  @@index([productId])
+}
+
+// ---------- Cart & commerce ----------
+model Cart {
+  id        String     @id @default(uuid())
+  ownerId   String     @unique
+  isGuest   Boolean    @default(false)
+  couponId  String?
+  updatedAt DateTime   @updatedAt
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String         @id @default(uuid())
+  cartId    String
+  variantId String
+  qty       Int
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, variantId])
+  @@index([cartId])
+}
+
+model Order {
+  id            String             @id @default(uuid())
+  userId        String
+  status        OrderStatus        @default(PLACED)
+  subtotalCents Int
+  discountCents Int                @default(0)
+  walletCents   Int                @default(0)
+  deliveryCents Int                @default(0)
+  totalCents    Int
+  addressId     String
+  slotId        String?
+  couponId      String?
+  createdAt     DateTime           @default(now())
+  user          User               @relation(fields: [userId], references: [id])
+  items         OrderItem[]
+  payment       Payment?
+  history       OrderStatusEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String         @id @default(uuid())
+  orderId    String
+  variantId  String
+  qty        Int
+  priceCents Int
+  order      Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant    ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+}
+
+model OrderStatusEvent {
+  id      String      @id @default(uuid())
+  orderId String
+  status  OrderStatus
+  at      DateTime    @default(now())
+  order   Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, at])
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  orderId     String?       @unique
+  amountCents Int
+  status      PaymentStatus @default(CREATED)
+  razorpayRef String?
+  signature   String?
+  createdAt   DateTime      @default(now())
+  order       Order?        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Coupon {
+  id            String     @id @default(uuid())
+  code          String     @unique
+  type          CouponType
+  value         Int
+  minOrderCents Int        @default(0)
+  usageLimit    Int
+  usedCount     Int        @default(0)
+  expiresAt     DateTime
+  isActive      Boolean    @default(true)
+}
+
+// ---------- Wallet & rewards ----------
+model Wallet {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  balanceCents Int                 @default(0)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  txns         WalletTransaction[]
+}
+
+model WalletTransaction {
+  id             String        @id @default(uuid())
+  walletId       String
+  amountCents    Int
+  type           WalletTxnType
+  reason         String
+  idempotencyKey String?       @unique
+  at             DateTime      @default(now())
+  wallet         Wallet        @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, at])
+}
+
+model Xp {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  total     Int      @default(0)
+  reachedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([total])
+}
+
+model Badge {
+  id        String   @id @default(uuid())
+  userId    String
+  key       String
+  grantedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+}
+
+model Streak {
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  scanStreak      Int     @default(0)
+  lastScanDay     String?
+  purchaseStreak  Int     @default(0)
+  lastPurchaseDay String?
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ScanHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  utcDay    String
+  at        DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, utcDay])
+}
+
+model ScanReward {
+  id        String @id @default(uuid())
+  userId    String
+  productId String
+  utcDay    String
+  xpAwarded Int
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId, utcDay])
+}
+
+// ---------- Subscriptions & bundles ----------
+model Subscription {
+  id             String             @id @default(uuid())
+  userId         String
+  status         SubStatus          @default(ACTIVE)
+  nextDeliveryAt DateTime
+  createdAt      DateTime           @default(now())
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items          SubscriptionItem[]
+
+  @@index([status, nextDeliveryAt])
+}
+
+model SubscriptionItem {
+  id             String         @id @default(uuid())
+  subscriptionId String
+  variantId      String
+  qty            Int
+  subscription   Subscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([subscriptionId])
+}
+
+model Bundle {
+  id         String          @id @default(uuid())
+  key        String          @unique
+  name       String
+  priceCents Int
+  products   BundleProduct[]
+}
+
+model BundleProduct {
+  id        String @id @default(uuid())
+  bundleId  String
+  productId String
+  bundle    Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([bundleId])
+}
+
+// ---------- Content & engagement ----------
+model NewsletterArticle {
+  id          String            @id @default(uuid())
+  title       String
+  body        String
+  publishedAt DateTime          @default(now())
+  saved       SavedArticle[]
+  progress    ReadingProgress[]
+
+  @@index([publishedAt])
+}
+
+model SavedArticle {
+  id        String            @id @default(uuid())
+  userId    String
+  articleId String
+  savedAt   DateTime          @default(now())
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   NewsletterArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId, savedAt])
+}
+
+model ReadingProgress {
+  id        String            @id @default(uuid())
+  userId    String
+  articleId String
+  percent   Int               @default(0)
+  updatedAt DateTime          @updatedAt
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   NewsletterArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+}
+
+model SavedProduct {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  savedAt   DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, savedAt])
+}
+
+model RecentlyViewed {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, viewedAt])
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String
+  message   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Delivery & notifications ----------
+model DeliverySlot {
+  id        String   @id @default(uuid())
+  startAt   DateTime
+  endAt     DateTime
+  capacity  Int
+  reserved  Int      @default(0)
+
+  @@index([startAt])
+}
+
+model Pincode {
+  id     String @id @default(uuid())
+  userId String
+  code   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+}
+
+model DeviceToken {
+  id     String @id @default(uuid())
+  userId String
+  token  String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+}
+
+model Notification {
+  id       String    @id @default(uuid())
+  userId   String
+  category String
+  payload  Json
+  sentAt   DateTime?
+  attempts Int       @default(0)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------- Admin & audit ----------
+model Admin {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  attempted Json?
+  at        DateTime @default(now())
+
+  @@index([action, at])
+}
+
+// Small key/value store for runtime-switchable settings (e.g. Razorpay
+// test/live mode). Secrets are NEVER stored here — only non-secret flags.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,6 @@
+-- Allow order-less failed payment attempts (Requirement 17.5).
+ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_orderId_fkey";
+ALTER TABLE "Payment" ALTER COLUMN "orderId" DROP NOT NULL;
+ALTER TABLE "Payment"
+  ADD CONSTRAINT "Payment_orderId_fkey"
+  FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;

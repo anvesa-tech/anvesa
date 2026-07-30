@@ -1,0 +1,26 @@
+{
+  "name": "anvesa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ANVESA — a clean-food marketplace where every product is verified. Buy what's verified, not what's marketed.",
+  "workspaces": [
+    "mobile",
+    "backend",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "depcruise": "depcruise backend/src --config .dependency-cruiser.cjs",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:mobile": "npm run start --workspace mobile"
+  },
+  "devDependencies": {
+    "dependency-cruiser": "^16.4.0",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

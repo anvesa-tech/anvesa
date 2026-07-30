@@ -1,0 +1,11 @@
+{
+  "name": "@anvesa/config",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "files": [
+    "tsconfig.base.json",
+    "eslint.base.cjs",
+    "prettier.base.cjs"
+  ]
+}
